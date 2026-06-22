@@ -1,0 +1,21 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": ["AGENTS.md"],
+  "command": {
+    "recall": {
+      "description": "Load session context from memory/ after a clear or at session start. Resume work without re-briefing. Usage: /recall [project-name]",
+      "template": "The user wants to recall their session context. Follow the recall skill step by step. If a project name is mentioned, use it. Otherwise read the index."
+    },
+    "archive": {
+      "description": "Archive the current session before a clear. Saves decisions, project state, next steps and asset URLs to memory/. Usage: /archive",
+      "template": "The user wants to archive this session before clearing. Follow the archive skill step by step."
+    }
+  },
+  "agent": {
+    "explore": {
+      "permission": {
+        "edit": "deny"
+      }
+    }
+  }
+}
