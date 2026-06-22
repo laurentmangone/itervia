@@ -22,12 +22,16 @@ export function ElevationProfile({ data, height = 150 }: ElevationProfileProps) 
     canvas.height = height * dpr;
     ctx.scale(dpr, dpr);
 
-    const distances = data.map((p) => p.distance);
-    const elevations = data.map((p) => p.elevation);
-    const minElev = Math.min(...elevations);
-    const maxElev = Math.max(...elevations);
+    let minElev = Infinity;
+    let maxElev = -Infinity;
+    for (const p of data) {
+      if (p.elevation < minElev) minElev = p.elevation;
+      if (p.elevation > maxElev) maxElev = p.elevation;
+    }
+    const distStart = data[0].distance;
+    const distEnd = data[data.length - 1].distance;
     const elevRange = maxElev - minElev || 1;
-    const distRange = distances[distances.length - 1] - distances[0] || 1;
+    const distRange = distEnd - distStart || 1;
 
     const padding = { top: 10, right: 10, bottom: 20, left: 40 };
     const plotWidth = width - padding.left - padding.right;
@@ -38,14 +42,19 @@ export function ElevationProfile({ data, height = 150 }: ElevationProfileProps) 
     ctx.fillStyle = '#f8fafc';
     ctx.fillRect(0, 0, width, height);
 
+    // Single pass: build path for both fill and stroke
     ctx.beginPath();
-    ctx.moveTo(padding.left, padding.top + plotHeight);
-    data.forEach((point, i) => {
-      const x = padding.left + ((point.distance - distances[0]) / distRange) * plotWidth;
+    for (let i = 0; i < data.length; i++) {
+      const point = data[i];
+      const x = padding.left + ((point.distance - distStart) / distRange) * plotWidth;
       const y = padding.top + plotHeight - ((point.elevation - minElev) / elevRange) * plotHeight;
-      if (i === 0) ctx.lineTo(x, y);
-      else ctx.lineTo(x, y);
-    });
+      if (i === 0) {
+        ctx.moveTo(padding.left, padding.top + plotHeight);
+        ctx.lineTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
     ctx.lineTo(padding.left + plotWidth, padding.top + plotHeight);
     ctx.closePath();
 
@@ -55,15 +64,17 @@ export function ElevationProfile({ data, height = 150 }: ElevationProfileProps) 
     ctx.fillStyle = gradient;
     ctx.fill();
 
+    // Reuse same path for stroke (no need to re-iterate)
     ctx.strokeStyle = '#3b82f6';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    data.forEach((point, i) => {
-      const x = padding.left + ((point.distance - distances[0]) / distRange) * plotWidth;
+    for (let i = 0; i < data.length; i++) {
+      const point = data[i];
+      const x = padding.left + ((point.distance - distStart) / distRange) * plotWidth;
       const y = padding.top + plotHeight - ((point.elevation - minElev) / elevRange) * plotHeight;
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
-    });
+    }
     ctx.stroke();
 
     ctx.fillStyle = '#64748b';
@@ -79,7 +90,7 @@ export function ElevationProfile({ data, height = 150 }: ElevationProfileProps) 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     for (let i = 0; i <= 4; i++) {
-      const dist = distances[0] + (distRange * i) / 4;
+      const dist = distStart + (distRange * i) / 4;
       const x = padding.left + (i / 4) * plotWidth;
       ctx.fillText(`${(dist / 1000).toFixed(1)}km`, x, padding.top + plotHeight + 5);
     }

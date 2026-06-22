@@ -52,11 +52,9 @@ export function useMap(containerRef: React.RefObject<HTMLDivElement | null>) {
   }, []);
 
   useEffect(() => {
-    console.log('[useMap] effect running, containerRef.current:', !!containerRef.current, 'mapRef.current:', !!mapRef.current);
     if (!containerRef.current || mapRef.current) return;
 
     let cancelled = false;
-    console.log('[useMap] creating map');
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
@@ -67,14 +65,12 @@ export function useMap(containerRef: React.RefObject<HTMLDivElement | null>) {
     map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
     map.on('load', () => {
-      console.log('[useMap] map loaded, cancelled:', cancelled);
       if (!cancelled) setMapLoaded(true);
     });
 
     mapRef.current = map;
 
     return () => {
-      console.log('[useMap] cleanup called!');
       cancelled = true;
       map.remove();
       mapRef.current = null;

@@ -18,7 +18,9 @@ export function MapView({ onMapClick }: MapViewProps) {
   const [searchResults, setSearchResults] = useState<{ lng: number; lat: number; label: string }[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  const { currentRoute } = useRouteStore();
+  const currentRoute = useRouteStore((s) => s.currentRoute);
+  const points = currentRoute?.points;
+  const geometry = currentRoute?.geometry;
 
   useEffect(() => {
     if (!mapLoaded) return;
@@ -28,21 +30,21 @@ export function MapView({ onMapClick }: MapViewProps) {
 
   useEffect(() => {
     if (!mapLoaded || !currentRoute) return;
-    if (currentRoute.points.length > 0) {
-      addPointLayer(currentRoute.points);
+    if (points && points.length > 0) {
+      addPointLayer(points);
     }
-    if (currentRoute.geometry) {
+    if (geometry) {
       addRouteLine(currentRoute);
       flyToRoute(currentRoute);
     }
-  }, [mapLoaded, currentRoute, addPointLayer, addRouteLine, flyToRoute]);
+  }, [mapLoaded, points, geometry, addPointLayer, addRouteLine, flyToRoute]);
 
   useEffect(() => {
     if (!mapLoaded) return;
     if (!currentRoute) {
       clearRoute();
     }
-  }, [mapLoaded, currentRoute, clearRoute]);
+  }, [mapLoaded, !!currentRoute, clearRoute]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();

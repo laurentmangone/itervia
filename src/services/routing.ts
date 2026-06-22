@@ -25,7 +25,8 @@ function haversineDistance(a: Coordinates, b: Coordinates): number {
 
 export async function calculateRoute(
   coordinates: Coordinates[],
-  profile: 'cycling-regular' | 'cycling-road' | 'cycling-mountain' | 'cycling-electric' | 'foot-hiking' = 'cycling-regular'
+  profile: 'cycling-regular' | 'cycling-road' | 'cycling-mountain' | 'cycling-electric' | 'foot-hiking' = 'cycling-regular',
+  signal?: AbortSignal
 ): Promise<{ route: Route; elevation: ElevationPoint[] } | null> {
   if (!ORS_API_KEY) {
     console.warn('Clé API ORS non configurée');
@@ -51,6 +52,7 @@ export async function calculateRoute(
           elevation: true,
           geometry: true,
         }),
+        signal,
       }
     );
 
@@ -126,7 +128,7 @@ export function generateGPX(route: Route): string {
       return `      <trkpt lat="${lat}" lon="${lng}">${ele}\n      </trkpt>`;
     }).join('\n');
   } else if (route.points && route.points.length > 0) {
-    trackPoints = route.points
+    trackPoints = [...route.points]
       .sort((a, b) => a.order - b.order)
       .map((p) => {
         return `      <trkpt lat="${p.coordinates.lat}" lon="${p.coordinates.lng}">\n      </trkpt>`;

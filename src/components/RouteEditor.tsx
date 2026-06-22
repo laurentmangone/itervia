@@ -8,14 +8,19 @@ interface RouteEditorProps {
 }
 
 export function RouteEditor({ onClose, onSave }: RouteEditorProps) {
-  const { currentRoute, removeRoutePoint, reverseRoute, clearCurrentRoute, setRouteName, movePoint } = useRouteStore();
+  const currentRoute = useRouteStore((s) => s.currentRoute);
+  const removeRoutePoint = useRouteStore((s) => s.removeRoutePoint);
+  const reverseRoute = useRouteStore((s) => s.reverseRoute);
+  const clearCurrentRoute = useRouteStore((s) => s.clearCurrentRoute);
+  const setRouteName = useRouteStore((s) => s.setRouteName);
+  const movePoint = useRouteStore((s) => s.movePoint);
   const [name, setName] = useState(currentRoute?.name || '');
 
   useEffect(() => {
     if (currentRoute) {
       setName(currentRoute.name || '');
     }
-  }, [currentRoute]);
+  }, [currentRoute?.id]);
 
   const handleSave = () => {
     if (currentRoute) {

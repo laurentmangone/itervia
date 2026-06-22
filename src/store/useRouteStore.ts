@@ -36,12 +36,24 @@ interface RouteRow {
   elevation_profile: string | null;
 }
 
-interface RoutePointRow {
-  id: string;
-  route_id: string;
-  lng: number;
-  lat: number;
-  point_order: number;
+async function batchUpdatePointOrder(db: Awaited<ReturnType<typeof getDatabase>>, points: RoutePoint[]): Promise<void> {
+  if (points.length === 0) return;
+  const batchSize = 500;
+  for (let i = 0; i < points.length; i += batchSize) {
+    const batch = points.slice(i, i + batchSize);
+    const caseClauses: string[] = [];
+    const values: unknown[] = [];
+    const ids: string[] = [];
+    for (const point of batch) {
+      caseClauses.push('WHEN id = ? THEN ?');
+      values.push(point.id, point.order);
+      ids.push(point.id);
+    }
+    await db.execute(
+      `UPDATE route_points SET point_order = CASE ${caseClauses.join(' ')} END WHERE id IN (${ids.map(() => '?').join(',')})`,
+      [...values, ...ids]
+    );
+  }
 }
 
 function rowToRoute(row: RouteRow, points: RoutePoint[]): Route {
@@ -59,17 +71,11 @@ function rowToRoute(row: RouteRow, points: RoutePoint[]): Route {
   };
 }
 
-async function loadRoutePoints(routeId: string): Promise<RoutePoint[]> {
-  const db = await getDatabase();
-  const rows = await db.select<RoutePointRow[]>(
-    'SELECT * FROM route_points WHERE route_id = $1 ORDER BY point_order',
-    [routeId]
-  );
-  return rows.map((row) => ({
-    id: row.id,
-    coordinates: { lng: row.lng, lat: row.lat },
-    order: row.point_order,
-  }));
+interface RouteWithPointsRow extends RouteRow {
+  point_id: string | null;
+  point_lng: number | null;
+  point_lat: number | null;
+  point_order: number | null;
 }
 
 export const useRouteStore = create<RouteState>((set, get) => ({
@@ -79,15 +85,29 @@ export const useRouteStore = create<RouteState>((set, get) => ({
 
   loadRoutes: async () => {
     const db = await getDatabase();
-    const rows = await db.select<RouteRow[]>('SELECT * FROM routes ORDER BY updated_at DESC');
-    
-    const routes: Route[] = [];
+    const rows = await db.select<RouteWithPointsRow[]>(
+      `SELECT r.*, rp.id as point_id, rp.lng as point_lng, rp.lat as point_lat, rp.point_order
+       FROM routes r
+       LEFT JOIN route_points rp ON r.id = rp.route_id
+       ORDER BY r.updated_at DESC, rp.point_order`
+    );
+
+    const routeMap = new Map<string, Route>();
     for (const row of rows) {
-      const points = await loadRoutePoints(row.id);
-      routes.push(rowToRoute(row as RouteRow, points));
+      if (!routeMap.has(row.id)) {
+        routeMap.set(row.id, rowToRoute(row, []));
+      }
+      if (row.point_id) {
+        const route = routeMap.get(row.id)!;
+        route.points.push({
+          id: row.point_id,
+          coordinates: { lng: row.point_lng!, lat: row.point_lat! },
+          order: row.point_order!,
+        });
+      }
     }
-    
-    set({ routes, isLoaded: true });
+
+    set({ routes: Array.from(routeMap.values()), isLoaded: true });
   },
 
   addRoute: async (route) => {
@@ -109,12 +129,21 @@ export const useRouteStore = create<RouteState>((set, get) => ({
       ]
     );
 
-    for (const point of route.points) {
-      await db.execute(
-        `INSERT INTO route_points (id, route_id, lng, lat, point_order)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [point.id, route.id, point.coordinates.lng, point.coordinates.lat, point.order]
-      );
+    if (route.points.length > 0) {
+      const batchSize = 500;
+      for (let i = 0; i < route.points.length; i += batchSize) {
+        const batch = route.points.slice(i, i + batchSize);
+        const placeholders: string[] = [];
+        const values: unknown[] = [];
+        for (const point of batch) {
+          placeholders.push('(?, ?, ?, ?, ?)');
+          values.push(point.id, route.id, point.coordinates.lng, point.coordinates.lat, point.order);
+        }
+        await db.execute(
+          `INSERT INTO route_points (id, route_id, lng, lat, point_order) VALUES ${placeholders.join(', ')}`,
+          values
+        );
+      }
     }
 
     set((state) => ({ routes: [...state.routes, route] }));
@@ -221,14 +250,8 @@ export const useRouteStore = create<RouteState>((set, get) => ({
     const newPoints = state.currentRoute.points
       .filter((p) => p.id !== pointId)
       .map((p, i) => ({ ...p, order: i }));
-    
-    // Update order in SQLite
-    for (const point of newPoints) {
-      await db.execute(
-        'UPDATE route_points SET point_order = $1 WHERE id = $2',
-        [point.order, point.id]
-      );
-    }
+
+    await batchUpdatePointOrder(db, newPoints);
 
     const updatedRoute = { ...state.currentRoute, points: newPoints, updatedAt: new Date() };
     
@@ -248,14 +271,8 @@ export const useRouteStore = create<RouteState>((set, get) => ({
     if (!state.currentRoute) return;
 
     const db = await getDatabase();
-    
-    // Update order in SQLite
-    for (const point of points) {
-      await db.execute(
-        'UPDATE route_points SET point_order = $1 WHERE id = $2',
-        [point.order, point.id]
-      );
-    }
+
+    await batchUpdatePointOrder(db, points);
 
     const updatedRoute = { ...state.currentRoute, points, updatedAt: new Date() };
     
@@ -328,14 +345,8 @@ export const useRouteStore = create<RouteState>((set, get) => ({
     const newPoints = state.currentRoute.points
       .filter((p) => p.id !== pointId)
       .map((p, i) => ({ ...p, order: i }));
-    
-    // Update order in SQLite
-    for (const point of newPoints) {
-      await db.execute(
-        'UPDATE route_points SET point_order = $1 WHERE id = $2',
-        [point.order, point.id]
-      );
-    }
+
+    await batchUpdatePointOrder(db, newPoints);
 
     const updatedRoute = { ...state.currentRoute, points: newPoints, updatedAt: new Date() };
     
@@ -357,14 +368,8 @@ export const useRouteStore = create<RouteState>((set, get) => ({
     const reversedPoints = [...state.currentRoute.points].reverse().map((p, i) => ({ ...p, order: i }));
     
     const db = await getDatabase();
-    
-    // Update order in SQLite
-    for (const point of reversedPoints) {
-      await db.execute(
-        'UPDATE route_points SET point_order = $1 WHERE id = $2',
-        [point.order, point.id]
-      );
-    }
+
+    await batchUpdatePointOrder(db, reversedPoints);
 
     const updatedRoute = { ...state.currentRoute, points: reversedPoints, updatedAt: new Date() };
     
@@ -395,14 +400,8 @@ export const useRouteStore = create<RouteState>((set, get) => ({
     const reorderedPoints = newPoints.map((p, i) => ({ ...p, order: i }));
     
     const db = await getDatabase();
-    
-    // Update order in SQLite
-    for (const point of reorderedPoints) {
-      await db.execute(
-        'UPDATE route_points SET point_order = $1 WHERE id = $2',
-        [point.order, point.id]
-      );
-    }
+
+    await batchUpdatePointOrder(db, reorderedPoints);
 
     const updatedRoute = { ...state.currentRoute, points: reorderedPoints, updatedAt: new Date() };
     
