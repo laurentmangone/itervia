@@ -1,7 +1,6 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, lazy, Suspense } from 'react';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
-import { MapView } from './components/MapView';
 import { RouteList } from './components/RouteList';
 import { RouteEditor } from './components/RouteEditor';
 import { ElevationProfile } from './components/ElevationProfile';
@@ -9,6 +8,8 @@ import { useRouteStore } from './store/useRouteStore';
 import { calculateRoute, parseGPX, generateGPX, createElevationProfileFromGPX } from './services/routing';
 import { Route, Coordinates } from './types';
 import './App.css';
+
+const MapView = lazy(() => import('./components/MapView').then(m => ({ default: m.MapView })));
 
 function App() {
   const currentRoute = useRouteStore((s) => s.currentRoute);
@@ -91,11 +92,18 @@ function App() {
       // Create elevation profile from GPX data
       const gpxElevationProfile = createElevationProfileFromGPX(coords, elevations);
       
-      // Calculate total elevation gain from GPX data
+      // Calculate total elevation gain from GPX data with threshold
+      const MIN_ELEVATION_STEP = 5;
+      let lastCountedElev = elevations[0] || 0;
       let elevationGain = 0;
       for (let i = 1; i < elevations.length; i++) {
-        const diff = elevations[i] - elevations[i - 1];
-        if (diff > 0) elevationGain += diff;
+        const diff = elevations[i] - lastCountedElev;
+        if (diff > MIN_ELEVATION_STEP) {
+          elevationGain += diff;
+          lastCountedElev = elevations[i];
+        } else if (diff < -MIN_ELEVATION_STEP) {
+          lastCountedElev = elevations[i];
+        }
       }
 
       const route: Route = {
@@ -195,7 +203,9 @@ function App() {
         </aside>
 
         <main className="main-content">
-          <MapView onMapClick={handleMapClick} />
+          <Suspense fallback={<div className="map-loading">Chargement carte...</div>}>
+            <MapView onMapClick={handleMapClick} />
+          </Suspense>
 
           {currentRoute && currentRoute.elevationProfile && currentRoute.elevationProfile.length > 0 && (
             <div className="elevation-section">

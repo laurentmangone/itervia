@@ -16,5 +16,12 @@ export default defineConfig({
   build: {
     target: 'es2020',
     minify: !process.env.TAURI_DEBUG,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'maplibre-gl': ['maplibre-gl'],
+        },
+      },
+    },
   },
 });

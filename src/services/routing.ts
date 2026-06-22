@@ -63,56 +63,63 @@ export async function calculateRoute(
     }
 
     const data = await response.json();
-    console.log('Données ORS:', data);
     const feature = data.features[0];
     const geometry = feature.geometry as GeoJSON.LineString;
+    const segment = feature.properties.segments?.[0];
 
     const elevationProfile: ElevationPoint[] = [];
-    let elevationGain = 0;
     let cumulativeDistance = 0;
+    const MIN_ELEVATION_STEP = 5;
 
     if (geometry.coordinates.length > 0) {
-      const firstElev = geometry.coordinates[0][2] ?? 0;
-      elevationProfile.push({ distance: 0, elevation: firstElev });
+      const rawElevations = geometry.coordinates.map(c => c[2] ?? 0);
+      let lastCountedElev = rawElevations[0];
+      let elevationGain = 0;
 
-      for (let i = 1; i < geometry.coordinates.length; i++) {
-        const prev: Coordinates = {
-          lng: geometry.coordinates[i - 1][0],
-          lat: geometry.coordinates[i - 1][1],
-        };
+      for (let i = 0; i < geometry.coordinates.length; i++) {
         const curr: Coordinates = {
           lng: geometry.coordinates[i][0],
           lat: geometry.coordinates[i][1],
         };
-        cumulativeDistance += haversineDistance(prev, curr);
+        if (i > 0) {
+          const prevCoord: Coordinates = {
+            lng: geometry.coordinates[i - 1][0],
+            lat: geometry.coordinates[i - 1][1],
+          };
+          cumulativeDistance += haversineDistance(prevCoord, curr);
+        }
 
-        const elev = geometry.coordinates[i][2] ?? 0;
-        const prevElev = geometry.coordinates[i - 1][2] ?? 0;
-        const diff = elev - prevElev;
-        if (diff > 0) elevationGain += diff;
+        const elev = rawElevations[i];
+        const diff = elev - lastCountedElev;
+        if (diff > MIN_ELEVATION_STEP) {
+          elevationGain += diff;
+          lastCountedElev = elev;
+        } else if (diff < -MIN_ELEVATION_STEP) {
+          lastCountedElev = elev;
+        }
 
         elevationProfile.push({ distance: cumulativeDistance, elevation: elev });
       }
-    }
 
-    const route: Route = {
-      id: crypto.randomUUID(),
-      name: '',
-      points: coordinates.map((c, i) => ({
+      const route: Route = {
         id: crypto.randomUUID(),
-        coordinates: c,
-        order: i,
-      })),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      distance: feature.properties.segments[0].distance,
-      duration: feature.properties.segments[0].duration,
-      geometry,
-      elevationProfile,
-      elevationGain: Math.round(elevationGain),
-    };
+        name: '',
+        points: coordinates.map((c, i) => ({
+          id: crypto.randomUUID(),
+          coordinates: c,
+          order: i,
+        })),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        distance: cumulativeDistance,
+        duration: segment?.duration,
+        geometry,
+        elevationProfile,
+        elevationGain: Math.round(elevationGain),
+      };
 
-    return { route, elevation: elevationProfile };
+      return { route, elevation: elevationProfile };
+    }
   } catch (error) {
     console.error('Erreur calcul itinéraire:', error);
     return null;
