@@ -1,4 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
+import { save } from '@tauri-apps/plugin-dialog';
+import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { MapView } from './components/MapView';
 import { RouteList } from './components/RouteList';
 import { RouteEditor } from './components/RouteEditor';
@@ -35,9 +37,10 @@ function App() {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
+      await addRoute(newRoute);
       setCurrentRoute(newRoute);
     }
-  }, [currentRoute, setCurrentRoute]);
+  }, [currentRoute, setCurrentRoute, addRoute]);
 
   const handleCalculateRoute = async () => {
     if (!currentRoute || currentRoute.points.length < 2) return;
@@ -69,6 +72,7 @@ function App() {
   };
 
   const handleSelectRoute = (route: Route) => {
+    console.log('Route sélectionnée:', route.id, 'points:', route.points?.length, 'geometry:', !!route.geometry);
     setCurrentRoute(route);
     setShowEditor(false);
   };
@@ -137,16 +141,16 @@ function App() {
     setShowEditor(false);
   };
 
-  const handleExportGPX = () => {
+  const handleExportGPX = async () => {
     if (!currentRoute) return;
     const gpx = generateGPX(currentRoute);
-    const blob = new Blob([gpx], { type: 'application/gpx+xml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${currentRoute.name || 'parcours'}.gpx`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const path = await save({
+      defaultPath: `${currentRoute.name || 'parcours'}.gpx`,
+      filters: [{ name: 'GPX', extensions: ['gpx'] }],
+    });
+    if (path) {
+      await writeTextFile(path, gpx);
+    }
   };
 
   if (!isLoaded) {
@@ -167,7 +171,7 @@ function App() {
               <button className="btn-secondary" onClick={handleCalculateRoute} disabled={isCalculating || currentRoute.points.length < 2}>
                 {isCalculating ? 'Calcul...' : 'Calculer itinéraire'}
               </button>
-              <button className="btn-secondary" onClick={handleExportGPX} disabled={!currentRoute.geometry}>
+              <button className="btn-secondary" onClick={handleExportGPX} disabled={!currentRoute || (currentRoute.points.length === 0 && !currentRoute.geometry)}>
                 Exporter GPX
               </button>
               <button className="btn-primary" onClick={() => setShowEditor(true)}>

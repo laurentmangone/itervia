@@ -118,10 +118,21 @@ export async function calculateRoute(
 }
 
 export function generateGPX(route: Route): string {
-  const trackPoints = route.geometry?.coordinates.map(([lng, lat, elev]) => {
-    const ele = elev != null ? `\n        <ele>${elev}</ele>` : '';
-    return `      <trkpt lat="${lat}" lon="${lng}">${ele}\n      </trkpt>`;
-  }).join('\n') || '';
+  let trackPoints = '';
+
+  if (route.geometry?.coordinates && route.geometry.coordinates.length > 0) {
+    trackPoints = route.geometry.coordinates.map(([lng, lat, elev]) => {
+      const ele = elev != null ? `\n        <ele>${elev}</ele>` : '';
+      return `      <trkpt lat="${lat}" lon="${lng}">${ele}\n      </trkpt>`;
+    }).join('\n');
+  } else if (route.points && route.points.length > 0) {
+    trackPoints = route.points
+      .sort((a, b) => a.order - b.order)
+      .map((p) => {
+        return `      <trkpt lat="${p.coordinates.lat}" lon="${p.coordinates.lng}">\n      </trkpt>`;
+      })
+      .join('\n');
+  }
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="Itervia" xmlns="http://www.topografix.com/GPX/1/1">
