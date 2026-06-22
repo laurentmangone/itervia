@@ -22,6 +22,7 @@ interface RouteState {
   reverseRoute: () => Promise<void>;
   clearCurrentRoute: () => void;
   movePoint: (pointId: string, direction: number) => Promise<void>;
+  insertPointBetween: (afterPointId: string, coordinates: Coordinates) => Promise<void>;
 }
 
 interface RouteRow {
@@ -373,6 +374,46 @@ export const useRouteStore = create<RouteState>((set, get) => ({
 
     const updatedRoute = { ...state.currentRoute, points: reversedPoints, updatedAt: new Date() };
     
+    await db.execute(
+      'UPDATE routes SET updated_at = $1 WHERE id = $2',
+      [updatedRoute.updatedAt.toISOString(), updatedRoute.id]
+    );
+
+    set({
+      currentRoute: updatedRoute,
+      routes: state.routes.map((r) => (r.id === updatedRoute.id ? updatedRoute : r)),
+    });
+  },
+
+  insertPointBetween: async (afterPointId, coordinates) => {
+    const state = get();
+    if (!state.currentRoute) return;
+
+    const index = state.currentRoute.points.findIndex((p) => p.id === afterPointId);
+    if (index === -1) return;
+
+    const newPoint: RoutePoint = {
+      id: crypto.randomUUID(),
+      coordinates,
+      order: index + 1,
+    };
+
+    const newPoints = [
+      ...state.currentRoute.points.slice(0, index + 1),
+      newPoint,
+      ...state.currentRoute.points.slice(index + 1),
+    ].map((p, i) => ({ ...p, order: i }));
+
+    const db = await getDatabase();
+    await db.execute(
+      `INSERT INTO route_points (id, route_id, lng, lat, point_order)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [newPoint.id, state.currentRoute.id, coordinates.lng, coordinates.lat, newPoint.order]
+    );
+
+    await batchUpdatePointOrder(db, newPoints);
+
+    const updatedRoute = { ...state.currentRoute, points: newPoints, updatedAt: new Date() };
     await db.execute(
       'UPDATE routes SET updated_at = $1 WHERE id = $2',
       [updatedRoute.updatedAt.toISOString(), updatedRoute.id]

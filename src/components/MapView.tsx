@@ -1,17 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMap } from '../hooks/useMap';
 import { useRouteStore } from '../store/useRouteStore';
+import { Coordinates } from '../types';
 
 interface MapViewProps {
-  onMapClick?: (coordinates: { lng: number; lat: number }) => void;
+  onMapClick?: (coordinates: Coordinates, onRouteLine: boolean, segmentIndex?: number, wpA?: [number, number], wpB?: [number, number]) => void;
+  onPointDrag?: (pointId: string, coordinates: Coordinates) => void;
+  onPointDelete?: (pointId: string) => void;
 }
 
-export function MapView({ onMapClick }: MapViewProps) {
+export function MapView({ onMapClick, onPointDrag, onPointDelete }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const onMapClickRef = useRef(onMapClick);
   onMapClickRef.current = onMapClick;
+  const onPointDragRef = useRef(onPointDrag);
+  onPointDragRef.current = onPointDrag;
+  const onPointDeleteRef = useRef(onPointDelete);
+  onPointDeleteRef.current = onPointDelete;
 
-  const { mapLoaded, addPointLayer, addRouteLine, clearRoute, flyToRoute, onMapClick: hookMapClick, moveTo, geocode } =
+  const { mapLoaded, addPointMarkers, clearMarkers, addRouteLine, clearRoute, flyToRoute, onMapClick: hookMapClick, setCursorStyle, moveTo, geocode } =
     useMap(containerRef);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -24,20 +31,30 @@ export function MapView({ onMapClick }: MapViewProps) {
 
   useEffect(() => {
     if (!mapLoaded) return;
-    const cleanup = hookMapClick((coords) => onMapClickRef.current?.(coords));
+    const cleanup = hookMapClick((coords, onRouteLine, segIdx, wpA, wpB) => onMapClickRef.current?.(coords, onRouteLine, segIdx, wpA, wpB));
     return cleanup;
   }, [mapLoaded, hookMapClick]);
 
   useEffect(() => {
+    if (!mapLoaded) return;
+    setCursorStyle();
+  }, [mapLoaded, setCursorStyle]);
+
+  useEffect(() => {
     if (!mapLoaded || !currentRoute) return;
     if (points && points.length > 0) {
-      addPointLayer(points);
+      addPointMarkers(points, {
+        onDragEnd: (id, coords) => onPointDragRef.current?.(id, coords),
+        onDelete: (id) => onPointDeleteRef.current?.(id),
+      });
+    } else {
+      clearMarkers();
     }
     if (geometry) {
       addRouteLine(currentRoute);
       flyToRoute(currentRoute);
     }
-  }, [mapLoaded, points, geometry, addPointLayer, addRouteLine, flyToRoute]);
+  }, [mapLoaded, points, geometry, addPointMarkers, clearMarkers, addRouteLine, flyToRoute]);
 
   useEffect(() => {
     if (!mapLoaded) return;
@@ -78,7 +95,7 @@ export function MapView({ onMapClick }: MapViewProps) {
             className="search-input"
           />
           <button type="submit" className="search-btn" disabled={isSearching}>
-            {isSearching ? '...' : '🔍'}
+            {isSearching ? '...' : '\uD83D\uDD0D'}
           </button>
         </form>
         {searchResults.length > 0 && (

@@ -186,6 +186,39 @@ export async function parseGPX(file: File): Promise<{ coords: Coordinates[]; ele
   return { coords, elevations };
 }
 
+export function snapToGeometry(
+  point: Coordinates,
+  geometry: GeoJSON.LineString,
+  afterWpA: [number, number],
+  beforeWpB: [number, number]
+): Coordinates {
+  const coords = geometry.coordinates;
+  let bestDist = Infinity;
+  let bestCoord: [number, number] = [point.lng, point.lat];
+
+  for (const c of coords) {
+    const lng = c[0];
+    const lat = c[1];
+    // Only consider points between the two waypoints (with margin)
+    if (
+      lng < Math.min(afterWpA[0], beforeWpB[0]) - 0.001 ||
+      lng > Math.max(afterWpA[0], beforeWpB[0]) + 0.001 ||
+      lat < Math.min(afterWpA[1], beforeWpB[1]) - 0.001 ||
+      lat > Math.max(afterWpA[1], beforeWpB[1]) + 0.001
+    ) continue;
+
+    const dlng = point.lng - lng;
+    const dlat = point.lat - lat;
+    const dist = dlng * dlng + dlat * dlat;
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestCoord = [lng, lat];
+    }
+  }
+
+  return { lng: bestCoord[0], lat: bestCoord[1] };
+}
+
 export function createElevationProfileFromGPX(
   coords: Coordinates[],
   elevations: number[]

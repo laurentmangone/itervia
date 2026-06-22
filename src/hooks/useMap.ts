@@ -3,11 +3,72 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Coordinates, RoutePoint, Route } from '../types';
 
+function findNearestSegmentIndex(
+  point: [number, number],
+  coordinates: [number, number][]
+): number {
+  let minDist = Infinity;
+  let bestIdx = 0;
+  for (let i = 0; i < coordinates.length - 1; i++) {
+    const [ax, ay] = coordinates[i];
+    const [bx, by] = coordinates[i + 1];
+    const dx = bx - ax;
+    const dy = by - ay;
+    const lenSq = dx * dx + dy * dy;
+    let t = lenSq === 0 ? 0 : ((point[0] - ax) * dx + (point[1] - ay) * dy) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    const px = ax + t * dx;
+    const py = ay + t * dy;
+    const dist = (point[0] - px) ** 2 + (point[1] - py) ** 2;
+    if (dist < minDist) {
+      minDist = dist;
+      bestIdx = i;
+    }
+  }
+  return bestIdx;
+}
+
+function findNearestWaypointSegment(
+  point: [number, number],
+  waypoints: [number, number][]
+): number {
+  let minDist = Infinity;
+  let bestIdx = 0;
+  for (let i = 0; i < waypoints.length - 1; i++) {
+    const [ax, ay] = waypoints[i];
+    const [bx, by] = waypoints[i + 1];
+    const dx = bx - ax;
+    const dy = by - ay;
+    const lenSq = dx * dx + dy * dy;
+    let t = lenSq === 0 ? 0 : ((point[0] - ax) * dx + (point[1] - ay) * dy) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    const px = ax + t * dx;
+    const py = ay + t * dy;
+    const dist = (point[0] - px) ** 2 + (point[1] - py) ** 2;
+    if (dist < minDist) {
+      minDist = dist;
+      bestIdx = i;
+    }
+  }
+  return bestIdx;
+}
+
 const DEFAULT_CENTER: Coordinates = { lng: 2.3522, lat: 48.8566 };
 const DEFAULT_ZOOM = 12;
 
+function createMarkerElement(order: number, total: number): HTMLElement {
+  const el = document.createElement('div');
+  el.className = 'route-point-marker';
+  el.innerHTML = `
+    <span class="route-point-number">${order + 1}</span>
+    <button class="route-point-delete" title="Supprimer ce point">&times;</button>
+  `;
+  return el;
+}
+
 export function useMap(containerRef: React.RefObject<HTMLDivElement | null>) {
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const markersRef = useRef<Map<string, maplibregl.Marker>>(new Map());
   const [mapLoaded, setMapLoaded] = useState(false);
 
   const moveTo = useCallback((lng: number, lat: number, label?: string) => {
@@ -72,69 +133,63 @@ export function useMap(containerRef: React.RefObject<HTMLDivElement | null>) {
 
     return () => {
       cancelled = true;
+      markersRef.current.forEach((m) => m.remove());
+      markersRef.current.clear();
       map.remove();
       mapRef.current = null;
       setMapLoaded(false);
     };
   }, [containerRef]);
 
-  const addPointLayer = useCallback((points: RoutePoint[]) => {
+  const addPointLayer = useCallback((_points: RoutePoint[]) => {
+    // Markers are managed via addPointMarkers
+  }, []);
+
+  const addPointMarkers = useCallback((
+    points: RoutePoint[],
+    options?: {
+      onDragEnd?: (pointId: string, coordinates: Coordinates) => void;
+      onDelete?: (pointId: string) => void;
+    }
+  ) => {
     if (!mapRef.current || !mapLoaded) return;
-
     const map = mapRef.current;
+    const markers = markersRef.current;
 
-    if (map.getSource('route-points')) {
-      (map.getSource('route-points') as maplibregl.GeoJSONSource).setData({
-        type: 'FeatureCollection',
-        features: points.map((p) => ({
-          type: 'Feature',
-          geometry: { type: 'Point', coordinates: [p.coordinates.lng, p.coordinates.lat] },
-          properties: { id: p.id, order: p.order },
-        })),
-      });
-    } else {
-      map.addSource('route-points', {
-        type: 'geojson',
-        data: {
-          type: 'FeatureCollection',
-          features: points.map((p) => ({
-            type: 'Feature',
-            geometry: { type: 'Point', coordinates: [p.coordinates.lng, p.coordinates.lat] },
-            properties: { id: p.id, order: p.order },
-          })),
-        },
-      });
+    // Remove all old markers and recreate to ensure correct order numbers
+    markers.forEach((m) => m.remove());
+    markers.clear();
 
-      map.addLayer({
-        id: 'route-points-circle',
-        type: 'circle',
-        source: 'route-points',
-        paint: {
-          'circle-radius': 8,
-          'circle-color': '#3b82f6',
-          'circle-stroke-width': 2,
-          'circle-stroke-color': '#ffffff',
-        },
-      });
+    for (const point of points) {
+      const el = createMarkerElement(point.order, points.length);
 
-      map.addLayer({
-        id: 'route-points-label',
-        type: 'symbol',
-        source: 'route-points',
-        layout: {
-          'text-field': ['get', 'order'],
-          'text-font': ['Open Sans Bold'],
-          'text-size': 12,
-          'text-offset': [0, 1.5],
-        },
-        paint: {
-          'text-color': '#ffffff',
-          'text-halo-color': '#3b82f6',
-          'text-halo-width': 1,
-        },
-      });
+      const deleteBtn = el.querySelector('.route-point-delete') as HTMLButtonElement;
+      if (deleteBtn && options?.onDelete) {
+        deleteBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          options.onDelete!(point.id);
+        });
+      }
+
+      const marker = new maplibregl.Marker({ element: el, draggable: true })
+        .setLngLat([point.coordinates.lng, point.coordinates.lat])
+        .addTo(map);
+
+      if (options?.onDragEnd) {
+        marker.on('dragend', () => {
+          const lngLat = marker.getLngLat();
+          options.onDragEnd!(point.id, { lng: lngLat.lng, lat: lngLat.lat });
+        });
+      }
+
+      markers.set(point.id, marker);
     }
   }, [mapLoaded]);
+
+  const clearMarkers = useCallback(() => {
+    markersRef.current.forEach((m) => m.remove());
+    markersRef.current.clear();
+  }, []);
 
   const addRouteLine = useCallback((route: Route) => {
     if (!mapRef.current || !mapLoaded || !route.geometry) return;
@@ -166,13 +221,14 @@ export function useMap(containerRef: React.RefObject<HTMLDivElement | null>) {
   const clearRoute = useCallback(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
-    ['route-line-layer', 'route-points-circle', 'route-points-label'].forEach((id) => {
+    ['route-line-layer'].forEach((id) => {
       if (map.getLayer(id)) map.removeLayer(id);
     });
-    ['route-line', 'route-points'].forEach((id) => {
+    ['route-line'].forEach((id) => {
       if (map.getSource(id)) map.removeSource(id);
     });
-  }, []);
+    clearMarkers();
+  }, [clearMarkers]);
 
   const flyToRoute = useCallback((route: Route) => {
     if (!mapRef.current || !route.geometry) return;
@@ -181,23 +237,86 @@ export function useMap(containerRef: React.RefObject<HTMLDivElement | null>) {
     mapRef.current.fitBounds(bounds, { padding: 50, duration: 1000 });
   }, []);
 
-  const onMapClick = useCallback((callback: (coordinates: Coordinates) => void) => {
+  const onMapClick = useCallback((callback: (coordinates: Coordinates, onRouteLine: boolean, segmentIndex?: number) => void) => {
     if (!mapRef.current) return () => {};
     const handler = (e: maplibregl.MapMouseEvent) => {
-      callback({ lng: e.lngLat.lng, lat: e.lngLat.lat });
+      const map = mapRef.current;
+      if (!map) return;
+
+      const features = map.queryRenderedFeatures(e.point, { layers: ['route-line-layer'] });
+      if (features && features.length > 0) {
+        // Find which waypoint segment was clicked
+        const markers = markersRef.current;
+        if (markers.size >= 2) {
+          const waypoints: [number, number][] = [];
+          // Sort markers by their order number
+          const entries = Array.from(markers.entries());
+          entries.sort((a, b) => {
+            const numA = parseInt(a[1].getElement().querySelector('.route-point-number')?.textContent || '0');
+            const numB = parseInt(b[1].getElement().querySelector('.route-point-number')?.textContent || '0');
+            return numA - numB;
+          });
+          for (const [, m] of entries) {
+            const ll = m.getLngLat();
+            waypoints.push([ll.lng, ll.lat]);
+          }
+
+          // Find closest segment between consecutive waypoints
+          let minDist = Infinity;
+          let bestIdx = 0;
+          const clickPt: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+
+          for (let i = 0; i < waypoints.length - 1; i++) {
+            const [ax, ay] = waypoints[i];
+            const [bx, by] = waypoints[i + 1];
+            // Project click point onto segment
+            const dx = bx - ax;
+            const dy = by - ay;
+            const lenSq = dx * dx + dy * dy;
+            let t = lenSq === 0 ? 0 : ((clickPt[0] - ax) * dx + (clickPt[1] - ay) * dy) / lenSq;
+            t = Math.max(0, Math.min(1, t));
+            const px = ax + t * dx;
+            const py = ay + t * dy;
+            const dist = (clickPt[0] - px) ** 2 + (clickPt[1] - py) ** 2;
+            if (dist < minDist) {
+              minDist = dist;
+              bestIdx = i;
+            }
+          }
+
+          callback({ lng: e.lngLat.lng, lat: e.lngLat.lat }, true, bestIdx, waypoints[bestIdx], waypoints[bestIdx + 1]);
+          return;
+        }
+      }
+      callback({ lng: e.lngLat.lng, lat: e.lngLat.lat }, false);
     };
     mapRef.current.on('click', handler);
     return () => mapRef.current?.off('click', handler);
   }, []);
 
+  const setCursorStyle = useCallback(() => {
+    if (!mapRef.current || !mapLoaded) return;
+    const map = mapRef.current;
+
+    map.on('mouseenter', 'route-line-layer', () => {
+      map.getCanvas().style.cursor = 'pointer';
+    });
+    map.on('mouseleave', 'route-line-layer', () => {
+      map.getCanvas().style.cursor = '';
+    });
+  }, [mapLoaded]);
+
   return {
     map: mapRef.current,
     mapLoaded,
     addPointLayer,
+    addPointMarkers,
+    clearMarkers,
     addRouteLine,
     clearRoute,
     flyToRoute,
     onMapClick,
+    setCursorStyle,
     moveTo,
     geocode,
   };

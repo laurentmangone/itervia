@@ -1,11 +1,11 @@
-import { useState, useCallback, useEffect, lazy, Suspense } from 'react';
+import { useState, useCallback, useEffect, useRef, lazy, Suspense } from 'react';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { RouteList } from './components/RouteList';
 import { RouteEditor } from './components/RouteEditor';
 import { ElevationProfile } from './components/ElevationProfile';
 import { useRouteStore } from './store/useRouteStore';
-import { calculateRoute, parseGPX, generateGPX, createElevationProfileFromGPX } from './services/routing';
+import { calculateRoute, parseGPX, generateGPX, createElevationProfileFromGPX, snapToGeometry } from './services/routing';
 import { Route, Coordinates } from './types';
 import './App.css';
 
@@ -26,7 +26,30 @@ function App() {
     loadRoutes();
   }, [loadRoutes]);
 
-  const handleMapClick = useCallback(async (coordinates: Coordinates) => {
+  const lastClickTime = useRef(0);
+
+  const handleMapClick = useCallback(async (coordinates: Coordinates, onRouteLine: boolean, segmentIndex?: number, wpA?: [number, number], wpB?: [number, number]) => {
+    const now = Date.now();
+    if (now - lastClickTime.current < 300) return;
+    lastClickTime.current = now;
+
+    if (onRouteLine && segmentIndex !== undefined && wpA && wpB) {
+      const state = useRouteStore.getState();
+      if (!state.currentRoute || state.currentRoute.points.length < 2) return;
+
+      // Snap point to existing geometry if available
+      let snappedCoords = coordinates;
+      if (state.currentRoute.geometry) {
+        snappedCoords = snapToGeometry(coordinates, state.currentRoute.geometry, wpA, wpB);
+      }
+
+      const afterPoint = state.currentRoute.points[segmentIndex];
+      if (afterPoint) {
+        await state.insertPointBetween(afterPoint.id, snappedCoords);
+      }
+      return;
+    }
+
     if (currentRoute) {
       const newPoint = {
         id: crypto.randomUUID(),
@@ -48,6 +71,14 @@ function App() {
       setCurrentRoute(newRoute);
     }
   }, [currentRoute, setCurrentRoute, addRoute]);
+
+  const handlePointDrag = useCallback(async (pointId: string, coordinates: Coordinates) => {
+    await useRouteStore.getState().updatePoint(pointId, coordinates);
+  }, []);
+
+  const handlePointDelete = useCallback(async (pointId: string) => {
+    await useRouteStore.getState().deletePoint(pointId);
+  }, []);
 
   const handleCalculateRoute = async () => {
     if (!currentRoute || currentRoute.points.length < 2) return;
@@ -204,7 +235,11 @@ function App() {
 
         <main className="main-content">
           <Suspense fallback={<div className="map-loading">Chargement carte...</div>}>
-            <MapView onMapClick={handleMapClick} />
+            <MapView
+              onMapClick={handleMapClick}
+              onPointDrag={handlePointDrag}
+              onPointDelete={handlePointDelete}
+            />
           </Suspense>
 
           {currentRoute && currentRoute.elevationProfile && currentRoute.elevationProfile.length > 0 && (
