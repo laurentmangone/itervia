@@ -3,60 +3,10 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Coordinates, RoutePoint, Route } from '../types';
 
-function findNearestSegmentIndex(
-  point: [number, number],
-  coordinates: [number, number][]
-): number {
-  let minDist = Infinity;
-  let bestIdx = 0;
-  for (let i = 0; i < coordinates.length - 1; i++) {
-    const [ax, ay] = coordinates[i];
-    const [bx, by] = coordinates[i + 1];
-    const dx = bx - ax;
-    const dy = by - ay;
-    const lenSq = dx * dx + dy * dy;
-    let t = lenSq === 0 ? 0 : ((point[0] - ax) * dx + (point[1] - ay) * dy) / lenSq;
-    t = Math.max(0, Math.min(1, t));
-    const px = ax + t * dx;
-    const py = ay + t * dy;
-    const dist = (point[0] - px) ** 2 + (point[1] - py) ** 2;
-    if (dist < minDist) {
-      minDist = dist;
-      bestIdx = i;
-    }
-  }
-  return bestIdx;
-}
-
-function findNearestWaypointSegment(
-  point: [number, number],
-  waypoints: [number, number][]
-): number {
-  let minDist = Infinity;
-  let bestIdx = 0;
-  for (let i = 0; i < waypoints.length - 1; i++) {
-    const [ax, ay] = waypoints[i];
-    const [bx, by] = waypoints[i + 1];
-    const dx = bx - ax;
-    const dy = by - ay;
-    const lenSq = dx * dx + dy * dy;
-    let t = lenSq === 0 ? 0 : ((point[0] - ax) * dx + (point[1] - ay) * dy) / lenSq;
-    t = Math.max(0, Math.min(1, t));
-    const px = ax + t * dx;
-    const py = ay + t * dy;
-    const dist = (point[0] - px) ** 2 + (point[1] - py) ** 2;
-    if (dist < minDist) {
-      minDist = dist;
-      bestIdx = i;
-    }
-  }
-  return bestIdx;
-}
-
 const DEFAULT_CENTER: Coordinates = { lng: 2.3522, lat: 48.8566 };
 const DEFAULT_ZOOM = 12;
 
-function createMarkerElement(order: number, total: number): HTMLElement {
+function createMarkerElement(order: number, _total: number): HTMLElement {
   const el = document.createElement('div');
   el.className = 'route-point-marker';
   el.innerHTML = `
@@ -237,7 +187,7 @@ export function useMap(containerRef: React.RefObject<HTMLDivElement | null>) {
     mapRef.current.fitBounds(bounds, { padding: 50, duration: 1000 });
   }, []);
 
-  const onMapClick = useCallback((callback: (coordinates: Coordinates, onRouteLine: boolean, segmentIndex?: number) => void) => {
+  const onMapClick = useCallback((callback: (coordinates: Coordinates, onRouteLine: boolean, segmentIndex?: number, wpA?: [number, number], wpB?: [number, number]) => void) => {
     if (!mapRef.current) return () => {};
     const handler = (e: maplibregl.MapMouseEvent) => {
       const map = mapRef.current;

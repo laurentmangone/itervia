@@ -1,4 +1,6 @@
 import { Coordinates, Route, ElevationPoint } from '../types';
+import { usePreferencesStore } from '../store/usePreferencesStore';
+import { invoke } from '@tauri-apps/api/core';
 
 function escapeXml(text: string): string {
   return text
@@ -9,8 +11,9 @@ function escapeXml(text: string): string {
     .replace(/'/g, '&apos;');
 }
 
-const ORS_BASE_URL = 'https://api.openrouteservice.org/v2';
-const ORS_API_KEY = import.meta.env.VITE_ORS_API_KEY || '';
+function getOrsApiKey(): string {
+  return usePreferencesStore.getState().orsApiKey;
+}
 
 function haversineDistance(a: Coordinates, b: Coordinates): number {
   const R = 6371000;
@@ -28,43 +31,29 @@ export async function calculateRoute(
   profile: 'cycling-regular' | 'cycling-road' | 'cycling-mountain' | 'cycling-electric' | 'foot-hiking' = 'cycling-regular',
   signal?: AbortSignal
 ): Promise<{ route: Route; elevation: ElevationPoint[] } | null> {
-  if (!ORS_API_KEY) {
+  const apiKey = getOrsApiKey();
+  if (!apiKey) {
     console.warn('Clé API ORS non configurée');
     return null;
   }
 
   if (coordinates.length < 2) return null;
 
-  const coordsArray = coordinates.map(c => [c.lng, c.lat]);
-
   try {
-    const response = await fetch(
-      `${ORS_BASE_URL}/directions/${profile}/geojson`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': ORS_API_KEY,
-          'Content-Type': 'application/json',
-          'Accept': 'application/geo+json',
-        },
-        body: JSON.stringify({
-          coordinates: coordsArray,
-          elevation: true,
-          geometry: true,
-        }),
-        signal,
+    const data = await invoke<Record<string, unknown>>('calculate_ors_route', {
+      request: {
+        coordinates: coordinates.map(c => ({ lng: c.lng, lat: c.lat })),
+        profile,
+        api_key: apiKey,
       }
-    );
+    });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('Erreur ORS:', response.status, errText);
-      throw new Error(`ORS API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const feature = data.features[0];
-    const geometry = feature.geometry as GeoJSON.LineString;
+    const features = data.features as Array<{
+      geometry: GeoJSON.LineString;
+      properties: { segments?: Array<{ distance: number; duration: number }> };
+    }>;
+    const feature = features[0];
+    const geometry = feature.geometry;
     const segment = feature.properties.segments?.[0];
 
     const elevationProfile: ElevationPoint[] = [];
@@ -122,8 +111,8 @@ export async function calculateRoute(
     }
   } catch (error) {
     console.error('Erreur calcul itinéraire:', error);
-    return null;
   }
+  return null;
 }
 
 export function generateGPX(route: Route): string {

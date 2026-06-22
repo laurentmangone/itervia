@@ -1,6 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { generateGPX, parseGPX, createElevationProfileFromGPX, calculateRoute } from './routing';
 import { Route, Coordinates } from '../types';
+import { usePreferencesStore } from '../store/usePreferencesStore';
+import { invoke } from '@tauri-apps/api/core';
 
 function createMockRoute(overrides: Partial<Route> = {}): Route {
   return {
@@ -215,18 +217,23 @@ describe('createElevationProfileFromGPX', () => {
 });
 
 describe('calculateRoute', () => {
-  const originalFetch = global.fetch;
+  const originalInvoke = vi.mocked(invoke);
+  const originalApiKey = usePreferencesStore.getState().orsApiKey;
 
   beforeEach(() => {
-    global.fetch = vi.fn();
+    vi.mock('@tauri-apps/api/core', () => ({
+      invoke: vi.fn(),
+    }));
+    usePreferencesStore.setState({ orsApiKey: 'test-api-key' });
   });
 
   afterEach(() => {
-    global.fetch = originalFetch;
+    vi.restoreAllMocks();
+    usePreferencesStore.setState({ orsApiKey: originalApiKey });
   });
 
   it('should return null when no API key', async () => {
-    vi.stubEnv('VITE_ORS_API_KEY', '');
+    usePreferencesStore.setState({ orsApiKey: '' });
     const coords: Coordinates[] = [
       { lng: 4.35, lat: 50.85 },
       { lng: 4.40, lat: 50.90 },
@@ -234,7 +241,6 @@ describe('calculateRoute', () => {
 
     const result = await calculateRoute(coords);
     expect(result).toBeNull();
-    vi.unstubAllEnvs();
   });
 
   it('should return null when less than 2 coordinates', async () => {
@@ -244,51 +250,41 @@ describe('calculateRoute', () => {
     expect(result).toBeNull();
   });
 
-  it('should call ORS API with correct parameters', async () => {
+  it('should call ORS via invoke and parse response', async () => {
     const coords: Coordinates[] = [
       { lng: 4.35, lat: 50.85 },
       { lng: 4.40, lat: 50.90 },
     ];
 
-    const mockResponse = {
-      ok: true,
-      json: async () => ({
-        features: [
-          {
-            geometry: {
-              type: 'LineString',
-              coordinates: [
-                [4.35, 50.85, 100],
-                [4.40, 50.90, 150],
-              ],
-            },
-            properties: {
-              segments: [{ distance: 5000, duration: 600 }],
-            },
+    const mockData = {
+      features: [
+        {
+          geometry: {
+            type: 'LineString',
+            coordinates: [
+              [4.35, 50.85, 100],
+              [4.40, 50.90, 150],
+            ],
           },
-        ],
-      }),
+          properties: {
+            segments: [{ distance: 5000, duration: 600 }],
+          },
+        },
+      ],
     };
 
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(mockResponse);
+    const { invoke: mockInvoke } = await import('@tauri-apps/api/core');
+    (mockInvoke as ReturnType<typeof vi.fn>).mockResolvedValue(mockData);
 
     const result = await calculateRoute(coords);
 
-    expect(global.fetch).toHaveBeenCalledWith(
-      'https://api.openrouteservice.org/v2/directions/cycling-regular/geojson',
-      expect.objectContaining({
-        method: 'POST',
-        headers: expect.objectContaining({
-          'Content-Type': 'application/json',
-          'Accept': 'application/geo+json',
-        }),
-        body: JSON.stringify({
-          coordinates: [[4.35, 50.85], [4.40, 50.90]],
-          elevation: true,
-          geometry: true,
-        }),
-      })
-    );
+    expect(mockInvoke).toHaveBeenCalledWith('calculate_ors_route', {
+      request: {
+        coordinates: [{ lng: 4.35, lat: 50.85 }, { lng: 4.40, lat: 50.90 }],
+        profile: 'cycling-regular',
+        api_key: 'test-api-key',
+      },
+    });
 
     expect(result).not.toBeNull();
     expect(result!.route.distance).toBeGreaterThan(0);
@@ -304,40 +300,33 @@ describe('calculateRoute', () => {
       { lng: 4.40, lat: 50.90 },
     ];
 
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: false,
-      status: 401,
-      text: async () => 'Unauthorized',
-    });
+    const { invoke: mockInvoke } = await import('@tauri-apps/api/core');
+    (mockInvoke as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('ORS API error 401'));
 
     const result = await calculateRoute(coords);
     expect(result).toBeNull();
   });
 
-  it('should support AbortController signal', async () => {
+  it('should pass request to invoke', async () => {
     const coords: Coordinates[] = [
       { lng: 4.35, lat: 50.85 },
       { lng: 4.40, lat: 50.90 },
     ];
 
-    const controller = new AbortController();
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        features: [
-          {
-            geometry: { type: 'LineString', coordinates: [[4.35, 50.85, 100], [4.40, 50.90, 150]] },
-            properties: { segments: [{ distance: 5000, duration: 600 }] },
-          },
-        ],
-      }),
-    });
+    const mockData = {
+      features: [{
+        geometry: { type: 'LineString', coordinates: [[4.35, 50.85, 100], [4.40, 50.90, 150]] },
+        properties: { segments: [{ distance: 5000, duration: 600 }] },
+      }],
+    };
 
-    await calculateRoute(coords, 'cycling-regular', controller.signal);
+    const { invoke: mockInvoke } = await import('@tauri-apps/api/core');
+    (mockInvoke as ReturnType<typeof vi.fn>).mockResolvedValue(mockData);
 
-    expect(global.fetch).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({ signal: controller.signal })
-    );
+    await calculateRoute(coords, 'foot-hiking');
+
+    expect(mockInvoke).toHaveBeenCalledWith('calculate_ors_route', expect.objectContaining({
+      request: expect.objectContaining({ profile: 'foot-hiking' }),
+    }));
   });
 });

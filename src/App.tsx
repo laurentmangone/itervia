@@ -4,7 +4,9 @@ import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { RouteList } from './components/RouteList';
 import { RouteEditor } from './components/RouteEditor';
 import { ElevationProfile } from './components/ElevationProfile';
+import { SettingsDialog } from './components/SettingsDialog';
 import { useRouteStore } from './store/useRouteStore';
+import { usePreferencesStore } from './store/usePreferencesStore';
 import { calculateRoute, parseGPX, generateGPX, createElevationProfileFromGPX, snapToGeometry } from './services/routing';
 import { Route, Coordinates } from './types';
 import './App.css';
@@ -19,12 +21,20 @@ function App() {
   const updateRoute = useRouteStore((s) => s.updateRoute);
   const deleteRoute = useRouteStore((s) => s.deleteRoute);
   const loadRoutes = useRouteStore((s) => s.loadRoutes);
+  const loadPreferences = usePreferencesStore((s) => s.loadPreferences);
   const [showEditor, setShowEditor] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [isCalculating, setIsCalculating] = useState(false);
 
   useEffect(() => {
-    loadRoutes();
-  }, [loadRoutes]);
+    loadRoutes().catch((err) => {
+      console.error('Erreur chargement routes:', err);
+      useRouteStore.setState({ isLoaded: true });
+    });
+    loadPreferences().catch((err) => {
+      console.error('Erreur chargement préférences:', err);
+    });
+  }, [loadRoutes, loadPreferences]);
 
   const lastClickTime = useRef(0);
 
@@ -221,6 +231,9 @@ function App() {
               </button>
             </>
           )}
+          <button className="btn-icon settings-btn" onClick={() => setShowSettings(true)} title="Préférences">
+            ⚙
+          </button>
         </div>
       </header>
 
@@ -255,6 +268,10 @@ function App() {
           onClose={() => setShowEditor(false)}
           onSave={handleSaveRoute}
         />
+      )}
+
+      {showSettings && (
+        <SettingsDialog onClose={() => setShowSettings(false)} />
       )}
     </div>
   );
