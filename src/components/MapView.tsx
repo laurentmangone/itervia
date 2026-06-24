@@ -75,7 +75,7 @@ export function MapView({ onMapClick, onPointDrag, onPointDelete }: MapViewProps
   const handleSelectResult = (result: { lng: number; lat: number; label: string }) => {
     moveTo(result.lng, result.lat, result.label);
     setSearchResults([]);
-    setSearchQuery(result.label.split(',')[0]);
+    setSearchQuery('');
   };
 
   return (

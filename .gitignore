@@ -28,7 +28,7 @@ yarn-debug.log*
 yarn-error.log*
 
 # Memory (local context)
-memory/
+# memory/  # INCLUS: Context in memory/ for session recall
 
 # Tauri
 src-tauri/target/
