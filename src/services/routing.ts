@@ -29,7 +29,6 @@ function haversineDistance(a: Coordinates, b: Coordinates): number {
 export async function calculateRoute(
   coordinates: Coordinates[],
   profile: 'cycling-regular' | 'cycling-road' | 'cycling-mountain' | 'cycling-electric' | 'foot-hiking' = 'cycling-regular',
-  signal?: AbortSignal
 ): Promise<{ route: Route; elevation: ElevationPoint[] } | null> {
   const apiKey = getOrsApiKey();
   if (!apiKey) {

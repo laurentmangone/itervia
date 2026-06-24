@@ -95,8 +95,8 @@ function App() {
     setIsCalculating(true);
 
     const coords = currentRoute.points.map(p => p.coordinates);
-    const controller = new AbortController();
-    const result = await calculateRoute(coords, 'cycling-regular', controller.signal);
+    
+    const result = await calculateRoute(coords, 'cycling-regular');
 
     if (result) {
       const updatedRoute = {
@@ -165,8 +165,8 @@ function App() {
       setCurrentRoute(route);
 
       // Optional: call ORS to get the actual route geometry (snapped to roads)
-      const controller = new AbortController();
-      const calcResult = await calculateRoute(coords, 'cycling-regular', controller.signal);
+      
+      const calcResult = await calculateRoute(coords, 'cycling-regular');
       if (calcResult) {
         const updatedRoute = {
           ...route,
