@@ -16,7 +16,7 @@
 - Composants: MapView, RouteList, RouteEditor, ElevationProfile
 - Export/Import GPX, CSS responsive
 - Problème: calcul itinéraire ne s'affiche pas dans l'UI (API OK en curl)
-- [Archive](../../archives/2026-06-21-22h50-itervia-mvp-technique.md)
+- [Archive../../archives/2026-06-21-22h50-itervia-mvp-technique.md]
 
 ## Session 3 — 2026-06-22
 **Debugging crash app + route display fix**
@@ -27,14 +27,14 @@
 - `devtools: true` ajouté à la config fenêtre pour debugging.
 - `ErrorBoundary` et `window.onerror` ajoutés pour capturer les erreurs React/JS.
 - Reste: tester visuellement le calcul ORS dans l'UI, profil altimétrique, GPX complet.
-- [Archive](../../archives/2026-06-22-08h43-itervia-debug-crash-route-fix.md)
+- [Archive../../archives/2026-06-22-08h43-itervia-debug-crash-route-fix.md]
 
 ## Session 4 — 2026-06-22 21h00
 **Test calcul ORS validé**
 - Calcul d'itinéraire ORS testé et fonctionnel — le tracé s'affiche sur la carte
 - Documenté le lancement correct : `npm run tauri:dev` (--no-watch)
 - Build TypeScript vérifié — pas d'erreur
-- [Archive](../../archives/2026-06-22-21h00-itervia-test-calcul-ors.md)
+- [Archive../../archives/2026-06-22-21h00-itervia-test-calcul-ors.md]
 
 ## Session 5 — 2026-06-22 09h21
 **Profil altimétrique**
@@ -42,7 +42,7 @@
 - Calcul de l'elevationGain (D+) et construction du tableau ElevationPoint[]
 - GPX import/export avec balises `<ele>`
 - Test validé : le profil altimétrique s'affiche sous la carte
-- [Archive](../../archives/2026-06-22-09h21-itervia-profil-altimetrique.md)
+- [Archive../../archives/2026-06-22-09h21-itervia-profil-altimetrique.md]
 
 ## Session 6 — 2026-06-22 08h30
 **Export/Import GPX complet avec altitudes**
@@ -53,7 +53,7 @@
 - Suppression `.geojson` de l'accept input (pas de parser GeoJSON)
 - Nouvelle fonction `createElevationProfileFromGPX()` pour calculer distances cumulées
 - Build TypeScript vérifié — pas d'erreur
-- [Archive](../../archives/2026-06-22-08h30-itervia-export-import-gpx-altitudes.md)
+- [Archive../../archives/2026-06-22-08h30-itervia-export-import-gpx-altitudes.md]
 
 ## Session 7 — 2026-06-22 09h00
 **Sauvegarde locale SQLite**
@@ -62,11 +62,10 @@
 - Geometry et elevation_profile stockés en JSON TEXT
 - Migration 3 tables : routes, route_points, indexes
 - Store Zustand refactorisé avec actions async (write SQLite first, then update state)
-- Service database.ts avec singleton pour connexion
 - App.tsx : chargement routes au démarrage via loadRoutes()
 - Permissions SQL ajoutées aux capabilities
 - Build TypeScript vérifié — pas d'erreur
-- [Archive](../../archives/2026-06-22-09h00-itervia-sauvegarde-sqlite.md)
+- [Archive../../archives/2026-06-22-09h00-itervia-sauvegarde-sqlite.md]
 
 ## Session 8 — 2026-06-22 09h15
 **Session complète GPX + SQLite**
@@ -77,7 +76,7 @@
 - Intégration complète SQLite avec schema normalisé
 - Refactorisation store Zustand avec actions async
 - Toutes fonctionnalités MVP technique validées et persistées
-- [Archive](../../archives/2026-06-22-09h15-itervia-session-complete.md)
+- [Archive../../archives/2026-06-22-09h15-itervia-session-complete.md]
 
 ## Session 9 — 2026-06-22 10h00
 **GitHub + Corrections exports**
@@ -86,7 +85,7 @@
 - Corrigé export GPX pour fonctionner sans géométrie ORS
 - Ajouté tauri-plugin-dialog et tauri-plugin-fs pour dialogue "Enregistrer sous" natif
 - Configuré capabilities Tauri pour dialog et fs
-- [Archive](../../archives/2026-06-22-10h00-itervia-github-corrections-export.md)
+- [Archive../../archives/2026-06-22-10h00-itervia-github-corrections-export.md]
 
 ## Session 10 — 2026-06-22 12h20
 **Optimisation des performances**
@@ -94,7 +93,7 @@
 - Améliorations importantes (P1) : sélecteurs Zustand, AbortController, useMemo
 - Optimisations moyennes (P2) : itération canvas, sort immutable, nettoyage console.log
 - Toutes les optimisations validées et commitées
-- [Archive](../../archives/2026-06-22-12h20-itervia-optimisation-performances.md)
+- [Archive../../archives/2026-06-22-12h20-itervia-optimisation-performances.md]
 
 ## Session 11 — 2026-06-22 13h35
 **Tests unitaires + Distribution**
@@ -102,20 +101,21 @@
 - 39 tests : routing.ts (19) + useRouteStore.ts (20)
 - Bundle identifier corrigé (com.itervia.app → com.itervia.desktop)
 - Build Tauri : Itervia.app + Itervia_0.1.0_aarch64.dmg
-- [Archive](../../archives/2026-06-22-13h35-itervia-tests-distribution.md)
+- [Archive../../archives/2026-06-22-13h35-itervia-tests-distribution.md]
 
 ## Session 12 — 2026-06-22
 **Code splitting maplibre-gl**
 - Config Vite `manualChunks` pour isoler maplibre-gl
 - Lazy loading MapView avec React.lazy + Suspense
 - Build vérifié : app principale 54 KB gzip (vs ~270 KB avant)
+- [Archive../../archives/2026-06-22-15h00-itervia-bundle-optimisation-distance-dplus.md]
 
-## Session 13 — 2026-06-22
+## Session 13 — 2026-06-22 15h00
 **Fix distance + D+ altitude**
 - Distance : utilisation distance cumulée (haversine) au lieu de `segments[0].distance` ORS
 - D+ : seuil adaptatif de 5m pour filtrer bruit altimétrique SRTM
 - Résultat : 48m vs 50m OpenRunner (écart 4%, marge d'erreur acceptable)
-- [Archive](../../archives/2026-06-22-15h00-itervia-bundle-optimisation-distance-dplus.md)
+- [Archive../../archives/2026-06-22-16h30-itervia-waypoint-management.md]
 
 ## Session 14 — 2026-06-22 16h30
 **Waypoint management (drag, insert, delete)**
@@ -123,7 +123,7 @@
 - Insertion de points entre deux existants via clic sur la ligne d'itinéraire
 - Snap des points insérés sur géométrie ORS existante
 - Debounce clic pour éviter doubles ajouts
-- [Archive](../../archives/2026-06-22-16h30-itervia-waypoint-management.md)
+- [Archive../../archives/2026-06-22-16h30-itervia-waypoint-management.md]
 
 ## Session 15 — 2026-06-22 18h55
 **Préférences utilisateur + Chiffrement API key + ORS via Rust**
@@ -133,4 +133,10 @@
 - Appel ORS via Rust (reqwest) pour éviter CORS en dev
 - Migration v4 SQLite : table preferences
 - Fix erreurs TS pré-existantes dans useMap.ts
-- [Archive](../../archives/2026-06-22-18h55-itervia-prefs-chiffrement-ors-rust.md)
+- [Archive../../archives/2026-06-22-18h55-itervia-prefs-chiffrement-ors-rust.md]
+
+## Session 16 — 2026-06-24 10h35
+**Fix build**
+- Fixed TypeScript errors and removed unused signal parameters to resolve build issues.
+- Commit and push changes to main.
+- [Archive../../archives/2026-06-24-10h35-itervia-fix-build.md]
