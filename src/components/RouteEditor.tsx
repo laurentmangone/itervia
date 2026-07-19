@@ -22,10 +22,10 @@ export function RouteEditor({ onClose, onSave }: RouteEditorProps) {
     }
   }, [currentRoute?.id]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (currentRoute) {
-      setRouteName(name);
-      onSave(currentRoute);
+      await setRouteName(name);
+      onSave(useRouteStore.getState().currentRoute!);
     }
     onClose();
   };

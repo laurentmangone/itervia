@@ -115,6 +115,18 @@ function App() {
     setIsCalculating(false);
   };
 
+  const handleNewRoute = useCallback(async () => {
+    const newRoute: Route = {
+      id: crypto.randomUUID(),
+      name: '',
+      points: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    await addRoute(newRoute);
+    setCurrentRoute(newRoute);
+  }, [addRoute, setCurrentRoute]);
+
   const handleSelectRoute = (route: Route) => {
     console.log('Route sélectionnée:', route.id, 'points:', route.points?.length, 'geometry:', !!route.geometry);
     setCurrentRoute(route);
@@ -243,6 +255,7 @@ function App() {
             onSelectRoute={handleSelectRoute}
             onDeleteRoute={handleDeleteRoute}
             onImportGPX={handleImportGPX}
+            onNewRoute={handleNewRoute}
           />
         </aside>
 

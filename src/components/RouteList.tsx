@@ -6,9 +6,10 @@ interface RouteListProps {
   onSelectRoute: (route: Route) => void;
   onDeleteRoute: (id: string) => void;
   onImportGPX: (file: File) => Promise<void>;
+  onNewRoute: () => void;
 }
 
-export function RouteList({ onSelectRoute, onDeleteRoute, onImportGPX }: RouteListProps) {
+export function RouteList({ onSelectRoute, onDeleteRoute, onImportGPX, onNewRoute }: RouteListProps) {
   const routes = useRouteStore((s) => s.routes);
 
   const sortedRoutes = useMemo(() => {
@@ -27,10 +28,15 @@ export function RouteList({ onSelectRoute, onDeleteRoute, onImportGPX }: RouteLi
     <div className="route-list">
       <div className="route-list-header">
         <h3>Mes parcours ({routes.length})</h3>
-        <label className="btn-secondary import-label">
-          Importer GPX
-          <input type="file" accept=".gpx" onChange={handleImport} hidden />
-        </label>
+        <div className="route-list-actions">
+          <button className="btn-primary" onClick={onNewRoute}>
+            Nouveau parcours
+          </button>
+          <label className="btn-secondary import-label">
+            Importer GPX
+            <input type="file" accept=".gpx" onChange={handleImport} hidden />
+          </label>
+        </div>
       </div>
 
       {routes.length === 0 ? (
